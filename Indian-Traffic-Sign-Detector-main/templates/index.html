@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Indian Traffic Sign Detector</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="page-shell">
+        <header class="hero">
+            <div class="hero-copy">
+                <span class="hero-badge">Custom HTML Frontend</span>
+                <h1>Indian Traffic Sign Detector</h1>
+                <p>
+                    Upload road sign images, run multi-image predictions, and review confidence-aware results
+                    through a custom frontend built for deployment and demos.
+                </p>
+                <div class="hero-stats">
+                    <article>
+                        <strong>85</strong>
+                        <span>traffic sign classes</span>
+                    </article>
+                    <article>
+                        <strong>224x224</strong>
+                        <span>model input size</span>
+                    </article>
+                    <article>
+                        <strong>Top 5</strong>
+                        <span>ranked predictions</span>
+                    </article>
+                </div>
+            </div>
+            <aside class="hero-panel">
+                <h2>Demo Tips</h2>
+                <ul>
+                    <li>Use front-facing, well-lit signs.</li>
+                    <li>Upload multiple files to compare results.</li>
+                    <li>Switch on Hindi assist for bilingual demos.</li>
+                </ul>
+            </aside>
+        </header>
+
+        <main class="layout">
+            <section class="main-column">
+                <section class="upload-card">
+                    <div class="section-heading">
+                        <h2>Run Detection</h2>
+                        <p>JPG and PNG supported. Maximum file size: {{ max_file_size_mb }} MB per request.</p>
+                    </div>
+
+                    {% if error %}
+                    <div class="alert alert-error">{{ error }}</div>
+                    {% endif %}
+
+                    <form action="{{ url_for('predict') }}" method="post" enctype="multipart/form-data" class="detect-form">
+                        <div class="field-row">
+                            <label for="language">Display language</label>
+                            <select id="language" name="language">
+                                <option value="english" {% if language == 'english' %}selected{% endif %}>English</option>
+                                <option value="hindi" {% if language == 'hindi' %}selected{% endif %}>Hindi Assist</option>
+                            </select>
+                        </div>
+
+                        <div class="input-mode-grid">
+                            <label class="dropzone" for="images">
+                                <input id="images" name="images" type="file" accept=".jpg,.jpeg,.png,image/*" multiple>
+                                <span class="dropzone-title">Upload one or more traffic sign images</span>
+                                <span class="dropzone-subtitle">Best for batch prediction and saved photos.</span>
+                                <span class="dropzone-meta" id="file-count">No files selected</span>
+                            </label>
+
+                            <section class="camera-card">
+                                <div class="camera-head">
+                                    <h3>Live Camera</h3>
+                                    <p>Capture a frame directly from your device camera and run instant prediction.</p>
+                                </div>
+
+                                <div class="camera-stage">
+                                    <video id="camera-preview" playsinline autoplay muted></video>
+                                    <img id="camera-snapshot" alt="Captured camera frame preview">
+                                    <div class="camera-placeholder" id="camera-placeholder">
+                                        Camera preview will appear here after you start the camera.
+                                    </div>
+                                </div>
+
+                                <input type="hidden" id="camera_image" name="camera_image">
+                                <canvas id="camera-canvas" hidden></canvas>
+
+                                <div class="camera-actions">
+                                    <button type="button" class="ghost-btn" id="start-camera">Start Camera</button>
+                                    <button type="button" class="ghost-btn" id="capture-frame" disabled>Capture</button>
+                                    <button type="button" class="ghost-btn" id="retake-frame" disabled>Retake</button>
+                                </div>
+
+                                <p class="camera-meta" id="camera-status">No live capture selected yet.</p>
+                            </section>
+                        </div>
+
+                        <div class="form-actions">
+                            <button type="submit" class="primary-btn">Analyze Images</button>
+                        </div>
+                    </form>
+                </section>
+
+                {% if result %}
+                <section class="results-stack">
+                    {% for item in result %}
+                    <article class="result-card">
+                        <div class="result-media">
+                            <img src="{{ item.preview_url }}" alt="Uploaded traffic sign preview">
+                        </div>
+                        <div class="result-content">
+                            <div class="result-topline">
+                                <span class="source-pill">{{ item.filename }}</span>
+                                <span class="status-pill status-{{ item.best.status_kind }}">{{ item.best.status_text }}</span>
+                            </div>
+                            <div class="result-actions">
+                                <button type="button" class="primary-btn download-pdf-btn"
+                                    data-image="{{ item.preview_url }}"
+                                    data-filename="{{ item.filename }}"
+                                    data-label="{{ item.best.localized_label }}"
+                                    data-confidence="{{ item.best.confidence }}"
+                                    data-time="{{ item.time }}"
+                                    data-top-predictions='{{ item.top_predictions | tojson | safe }}'>
+                                    Download PDF
+                                </button>
+                            </div>
+                            <h3>{{ item.best.label }}</h3>
+                            {% if item.best.localized_label != item.best.label %}
+                            <p class="localized">{{ item.best.localized_label }}</p>
+                            {% endif %}
+                            <p class="description">{{ item.best.description }}</p>
+
+                            <div class="metric-grid">
+                                <div class="metric-card">
+                                    <span>Confidence</span>
+                                    <strong>{{ item.best.confidence }}%</strong>
+                                </div>
+                                <div class="metric-card">
+                                    <span>Family</span>
+                                    <strong>{{ item.best.family }}</strong>
+                                </div>
+                                <div class="metric-card">
+                                    <span>Expected shape</span>
+                                    <strong>{{ item.best.shape }}</strong>
+                                </div>
+                            </div>
+
+                            <div class="result-actions">
+                                <button type="button" class="primary-btn download-pdf-btn"
+                                    data-image="{{ item.preview_url }}"
+                                    data-filename="{{ item.filename }}"
+                                    data-label="{{ item.best.localized_label }}"
+                                    data-confidence="{{ item.best.confidence }}"
+                                    data-time="{{ item.time }}"
+                                    data-top-predictions='{{ item.top_predictions | tojson | safe }}'>
+                                    Download PDF
+                                </button>
+                            </div>
+
+                            <div class="insight-card">
+                                <h4>Safety Tip</h4>
+                                <p>{{ item.best.safety_tip }}</p>
+                            </div>
+
+                            <div class="prediction-list">
+                                <h4>Top 5 Predictions</h4>
+                                {% for prediction in item.top_predictions %}
+                                <div class="prediction-row">
+                                    <div class="prediction-copy">
+                                        <strong>{{ prediction.localized_label }}</strong>
+                                        <span>{{ prediction.score }}%</span>
+                                    </div>
+                                    <div class="bar-track">
+                                        <div class="bar-fill" style="width: {{ prediction.score }}%"></div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </article>
+                    {% endfor %}
+                </section>
+                {% endif %}
+            </section>
+
+            <aside class="side-column">
+                <section class="panel-card">
+                    <div class="section-heading">
+                        <h2>Example Signs</h2>
+                        <p>Quick visual guide for the classes this project handles.</p>
+                    </div>
+                    <div class="example-grid">
+                        {% for example in examples %}
+                        <article class="example-card">
+                            <div class="shape shape-{{ example.shape | lower }}">{{ example.shape }}</div>
+                            <h3>{{ example.title }}</h3>
+                            <p>{{ example.family }} sign family</p>
+                        </article>
+                        {% endfor %}
+                    </div>
+                </section>
+
+                <section class="panel-card">
+                    <div class="section-heading">
+                        <h2>Recent Predictions</h2>
+                        <p>Stored per browser session for quick demo review.</p>
+                    </div>
+                    {% if history %}
+                    <form action="{{ url_for('clear_history') }}" method="post" class="history-action">
+                        <button type="submit" class="ghost-btn">Clear History</button>
+                    </form>
+                    <div class="history-list">
+                        {% for entry in history %}
+                        <article class="history-card">
+                            <strong>{{ entry.label }}</strong>
+                            <span>{{ entry.confidence }}% confidence</span>
+                            <small>{{ entry.source }} • {{ entry.time }}</small>
+                        </article>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="empty-card">No predictions yet. Your recent detections will appear here.</div>
+                    {% endif %}
+                </section>
+            </aside>
+        </main>
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha512-uQdXPx4X9zxFBAUxOVJ9Qc5c8mZ1nhK/SniPcGVQeN7HacJzSEm3KzUak03F0R1Vu5hF6kp+6d/sDq2f6Z1eLQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>
